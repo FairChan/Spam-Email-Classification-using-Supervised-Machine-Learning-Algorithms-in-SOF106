@@ -55,83 +55,83 @@ def vectorize_text(X):
 
 
 def train_ensemble_with_cv():
-    print("📂 正在加载数据...")
+    print("📂 Loading data...")
     X, y = load_and_prepare_data(r"/Users/fairchan/Desktop/人工智能原理/python/spam_dataset.csv")
     X_vec, vectorizer = vectorize_text(X)
 
-    # 构建 VotingClassifier（支持 soft voting）
+    # VotingClassifier（support soft voting）
     ensemble = VotingClassifier(
         estimators=[
             ('dt', DecisionTreeClassifier(max_depth=10, random_state=42)),
             ('nb', MultinomialNB()),
-            ('svm', SVC(probability=True, class_weight='balanced', kernel='linear'))  # 使用线性核以加速
+            ('svm', SVC(probability=True, class_weight='balanced', kernel='linear'))  # Use linear kernels to speed up
         ],
         voting='soft',
-        weights=[1, 2, 3]
+        # weights=[1, 2, 3]
     )
 
-    # ✅ === 加入 K 折交叉验证评估 ===
-    print("🔎 正在进行 5 折交叉验证...")
+    # === Add K-fold cross validation assessment ===
+    print("🔎 5-fold cross validation in progress...")
     cv_scores = cross_val_score(ensemble, X_vec, y, cv=5, scoring='accuracy')
-    print(f"✅ 5-fold 交叉验证准确率: {cv_scores}")
-    print(f"📊 平均准确率: {cv_scores.mean():.4f} ± {cv_scores.std():.4f}")
+    print(f"✅ 5-fold cross validation accuracy: {cv_scores}")
+    print(f"📊 Average accuracy: {cv_scores.mean():.4f} ± {cv_scores.std():.4f}")
 
-    # ✅ === 开始实际训练与保存 ===
-    print("\n🚀 正式训练融合模型...")
+    # ✅ === Start Practical Training and Preservation ===
+    print("\n🚀 Training...")
     X_train, X_test, y_train, y_test = train_test_split(X_vec, y, test_size=0.2, random_state=42)
 
-    # 1. 划分数据（先不打乱）
+    # 1. Divide the data (don't break it up yet)
     X_train_raw, X_test, y_train_raw, y_test = train_test_split(X_vec, y, test_size=0.2, random_state=42)
 
-    # 2. 对训练集进行上采样（X_vec 是稀疏矩阵）
+    # 2. Up-sample the training set (X_vec is a sparse matrix)
     from scipy.sparse import vstack
     from sklearn.utils import resample
 
-    # 将训练集转成 DataFrame，便于采样
+    # Converting the training set into a DataFrame for easy sampling
     X_train_df = pd.DataFrame(X_train_raw.toarray())
     y_train_df = pd.Series(y_train_raw).reset_index(drop=True)
     df_train = pd.concat([X_train_df, y_train_df.rename("label")], axis=1)
 
-    # 拆分 ham 和 spam
+    # Splitting ham and spam
     ham = df_train[df_train.label == 0]
     spam = df_train[df_train.label == 1]
 
-    # 对 spam 进行上采样，使其数量 = ham
+    # Up-sample spam so that number = ham
     spam_upsampled = resample(spam, replace=True, n_samples=len(ham), random_state=42)
 
-    # 合并数据
+    # Consolidation of data
     df_balanced = pd.concat([ham, spam_upsampled])
     X_bal = df_balanced.drop(columns=['label']).values
     y_bal = df_balanced['label'].values
     
     X_bal_sparse = sparse.csr_matrix(X_bal)
-    # 3. 拿上采样结果训练模型
+    # 3. Training the model with up-sampling results
 
     ensemble.fit(X_bal_sparse, y_bal)
 
     y_pred = ensemble.predict(X_test)
-    print("\n📈 最终测试集表现:")
+    print("\n📈 Final Test Set Performance.")
     print(classification_report(y_test, y_pred, target_names=['ham', 'spam']))
 
     joblib.dump({'model': ensemble, 'vectorizer': vectorizer}, "ensemble_spam_classifier.pkl")
-    print("\n✔ 融合模型已保存为：ensemble_spam_classifier.pkl")
+    print("\n✔ The fusion model has been saved as:ensemble_spam_classifier.pkl")
 
-    # 4. 训练模型
-    print("🚀 正在训练融合模型...")
+    # 4. Training models
+    print("🚀 ensemble model being trained... Model evaluation results:")
     ensemble.fit(X_train, y_train)
 
-    # 5. 模型评估
-    print("\n📊 模型评估结果：")
+    # 5. Model evaluation
+    print("\n📊 Model evaluation results:")
     y_pred = ensemble.predict(X_test)
     print(classification_report(y_test, y_pred, target_names=['ham', 'spam']))
 
-    # 6. 保存模型（包含模型 + 向量器）
+    # 6. Preservation of models (containing models + vectors)
     combined = {
         "model": ensemble,
         "vectorizer": vectorizer
     }
     joblib.dump(combined, "ensemble_spam_classifier.pkl")
-    print("\n✅ 融合模型保存为：ensemble_spam_classifier.pkl")
+    print("\n✅ Theensemble model seved as : ensemble_spam_classifier.pkl")
 
     return ensemble
 
